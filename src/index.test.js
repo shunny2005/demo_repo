@@ -42,3 +42,31 @@ test('GET /inventory/:sku 404s for an unknown sku', async () => {
   const res = await request(app, 'GET', '/inventory/does-not-exist');
   assert.equal(res.status, 404);
 });
+
+test('POST /inventory/:sku/reserve without allowPartial fails when quantity exceeds stock', async () => {
+  const res = await request(app, 'POST', '/inventory/sku-kite-002/reserve', { quantity: 999 });
+  assert.equal(res.status, 409);
+  assert.equal(res.body.error, 'insufficient_stock');
+});
+
+test('POST /inventory/:sku/reserve with allowPartial reserves the remaining stock instead of failing', async () => {
+  const res = await request(app, 'POST', '/inventory/sku-kite-002/reserve', {
+    quantity: 999,
+    allowPartial: true,
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.partial, true);
+  assert.equal(res.body.requested, 999);
+  assert.equal(res.body.quantity, 0);
+  assert.ok(res.body.reserved > 0);
+});
+
+test('POST /inventory/:sku/reserve fulfills in full when stock covers the request, partial flag false', async () => {
+  const res = await request(app, 'POST', '/inventory/sku-kite-001/reserve', {
+    quantity: 1,
+    allowPartial: true,
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.partial, false);
+  assert.equal(res.body.reserved, 1);
+});
